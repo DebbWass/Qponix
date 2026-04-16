@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- אייקון קדמי — מעטפה עם כוכבית (מייצג קופון/מתנה) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- כרטיס הקופון -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,36 Q26,30 32,30 L76,30 Q82,30 82,36 L82,72 Q82,78 76,78 L32,78 Q26,78 26,72 Z" />
+
+    <!-- קו הפרדה אופקי -->
+    <path
+        android:strokeColor="#2E7D32"
+        android:strokeWidth="2"
+        android:pathData="M26,50 L82,50" />
+
+    <!-- סימן ₪ -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M50,38 L50,48 M46,40 L54,40 M46,46 L54,46" />
+
+    <!-- כוכבית בפינה -->
+    <path
+        android:fillColor="#F9A825"
+        android:pathData="M70,60 L72,65 L77,65 L73,68 L74.5,73 L70,70 L65.5,73 L67,68 L63,65 L68,65 Z" />
+
+</vector>

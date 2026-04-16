@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Qponix</string>
+    <string name="permission_sms_rationale">האפליקציה צריכה גישה להודעות SMS כדי לאתר קופונים וגיפטקארדים שקיבלת.</string>
+    <string name="import_sms">ייבא מ-SMS</string>
+    <string name="coupon_code_copied">הקוד הועתק ✓</string>
+    <string name="no_coupons">אין קופונים פעילים</string>
+    <string name="mark_used">מימשתי</string>
+    <string name="update_balance">עדכן יתרה</string>
+    <string name="accessibility_service_description">מאפשר ל-Qponix לזהות קופונים בהודעות WhatsApp שמתקבלות</string>
+</resources>

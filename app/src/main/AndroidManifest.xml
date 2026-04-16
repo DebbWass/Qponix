@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ─── הרשאות SMS ─── -->
+    <!-- READ_SMS: קריאת הודעות קיימות מה-inbox בעת סריקה ראשונית -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- RECEIVE_SMS: קבלת הודעות חדשות בזמן אמת -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- INTERNET: פתיחת קישורי קופונים בדפדפן -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- POST_NOTIFICATIONS: שליחת push notifications (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- VIBRATE: רטט בהתראה -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <application
+        android:name=".CuponsApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.CuponsSMS"
+        android:usesCleartextTraffic="false">
+
+        <!-- ─── Main Activity ─── -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ─── SMS BroadcastReceiver: מקבל SMS חדשים ─── -->
+        <receiver
+            android:name=".data.sms.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="1000">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ─── WhatsApp Accessibility Service ─── -->
+        <service
+            android:name=".data.whatsapp.WhatsAppAccessibilityService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- ─── WorkManager Initializer ─── -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+
+    </application>
+
+</manifest>

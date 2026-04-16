@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme בסיסי — Jetpack Compose משתמש ב-Theme.kt, אבל Activity צריכה theme ב-XML -->
+    <style name="Theme.CuponsSMS" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
