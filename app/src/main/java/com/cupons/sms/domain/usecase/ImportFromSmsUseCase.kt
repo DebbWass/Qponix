@@ -3,6 +3,7 @@ package com.cupons.sms.domain.usecase
 import android.util.Log
 import com.cupons.sms.data.prefs.AppPreferences
 import com.cupons.sms.data.sms.SmsReader
+import kotlinx.coroutines.flow.first
 import com.cupons.sms.domain.model.Coupon
 import com.cupons.sms.domain.repository.CouponRepository
 import javax.inject.Inject
@@ -24,13 +25,15 @@ class ImportFromSmsUseCase @Inject constructor(
 
     suspend operator fun invoke(): ImportResult {
         // IDs שיש לדלג עליהם — כבר יובאו לDB או נדחו על ידי המשתמשת
-        val existingIds = repository.getImportedSmsIds()
-        val rejectedIds = prefs.getRejectedSmsIds()
-        val idsToSkip   = existingIds + rejectedIds
+        val existingIds    = repository.getImportedSmsIds()
+        val rejectedIds    = prefs.getRejectedSmsIds()
+        val idsToSkip      = existingIds + rejectedIds
+        val customKeywords = prefs.customKeywords.first().toList()
         Log.d(TAG, "idsToSkip: ${idsToSkip.size} (existing=${existingIds.size}, rejected=${rejectedIds.size})")
+        Log.d(TAG, "customKeywords: $customKeywords")
 
         // סריקה — SmsReader מדלג אוטומטית על idsToSkip
-        val rawMessages = smsReader.readAll(idsToSkip)
+        val rawMessages = smsReader.readAll(idsToSkip, customKeywords)
         Log.d(TAG, "Candidates after skip: ${rawMessages.size}")
 
         var imported = 0

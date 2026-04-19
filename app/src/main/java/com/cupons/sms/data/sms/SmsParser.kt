@@ -56,7 +56,8 @@ class SmsParser @Inject constructor() {
             "your code", "redeem", "use code", "enter code",
             // ─ לינקים מיוחדים ─
             "matana4u",
-            "buyme", "buyme.co.il", "buy me", "buy-me"
+            "buyme", "buyme.co.il", "buy me", "buy-me",
+            "dcgift", "dcgift.co.il"
         )
 
         // ─── 2. Patterns לחילוץ קוד קופון ───
@@ -126,6 +127,12 @@ class SmsParser @Inject constructor() {
             // Pattern 8b: קוד מתוך URL של buyme — https://buyme.co.il/link/ABC123
             Regex(
                 """buyme\.co\.il/(?:[^/\s]+/)*([A-Z0-9][A-Z0-9\-]{3,24})""",
+                RegexOption.IGNORE_CASE
+            ),
+
+            // Pattern 8c: קוד מתוך URL של dcgift — https://dcgift.co.il/redeem/ABC123
+            Regex(
+                """dcgift\.co\.il/(?:[^/\s]+/)*([A-Z0-9][A-Z0-9\-]{3,24})""",
                 RegexOption.IGNORE_CASE
             ),
 
@@ -205,7 +212,7 @@ class SmsParser @Inject constructor() {
 
     // ─── פונקציה ראשית ───
 
-    fun parse(body: String, sender: String, receivedAt: Long): ParsedSmsData? {
+    fun parse(body: String, sender: String, receivedAt: Long, customKeywords: List<String> = emptyList()): ParsedSmsData? {
         Log.d(TAG, "Parsing SMS from='$sender': ${body.take(100)}...")
 
         val bodyLower = body.lowercase()
@@ -216,8 +223,10 @@ class SmsParser @Inject constructor() {
             return null
         }
 
-        // שלב 1: מילת מפתח חזקה — חובה
-        val strongKeyword = STRONG_COUPON_KEYWORDS.firstOrNull { kw ->
+        // שלב 1: מילת מפתח חזקה — חובה (כולל מילות מפתח מותאמות)
+        val allKeywords = if (customKeywords.isEmpty()) STRONG_COUPON_KEYWORDS
+                         else STRONG_COUPON_KEYWORDS + customKeywords.map { it.lowercase() }
+        val strongKeyword = allKeywords.firstOrNull { kw ->
             bodyLower.contains(kw.lowercase())
         } ?: run {
             Log.d(TAG, "No strong keyword → skip")
@@ -235,7 +244,7 @@ class SmsParser @Inject constructor() {
         // שלב 3: חישוב confidence
         var confidence = 0.5f
         val amountResult = extractAmount(body).also { if (it != null) confidence += 0.25f }
-        val expiresAt    = extractExpiry(body).also   { if (it != null) confidence += 0.15f }
+        val expiresAt    = extractExpiry(body, receivedAt).also { if (it != null) confidence += 0.15f }
         val url          = extractUrl(body).also      {
             if (it != null) {
                 confidence += 0.10f
@@ -261,8 +270,9 @@ class SmsParser @Inject constructor() {
     /**
      * חילוץ תאריך תפוגה בלבד — לשימוש בסריקה מחדש של קופונים קיימים ב-DB.
      * לא מריץ את כל ה-parse, רק בודק תאריכים.
+     * @param receivedAt חותמת זמן קבלת ה-SMS — לחישוב שנה נכונה כשהתאריך חסר שנה.
      */
-    fun extractExpiryOnly(body: String): Long? = extractExpiry(body)
+    fun extractExpiryOnly(body: String, receivedAt: Long = System.currentTimeMillis()): Long? = extractExpiry(body, receivedAt)
 
     // ─── Helpers ───
 
@@ -293,31 +303,34 @@ class SmsParser @Inject constructor() {
 
     private fun extractUrl(body: String): String? = URL_PATTERN.find(body)?.value
 
-    private fun extractExpiry(body: String): Long? {
+    private fun extractExpiry(body: String, receivedAt: Long): Long? {
         for (pattern in EXPIRY_PATTERNS) {
             val match = pattern.find(body) ?: continue
-            parseDate(match.groupValues[1])?.let { return it }
+            parseDate(match.groupValues[1], receivedAt)?.let { return it }
         }
         return null
     }
 
-    private fun parseDate(dateStr: String): Long? {
+    private fun parseDate(dateStr: String, receivedAt: Long): Long? {
         return try {
             val parts = dateStr.trim().split(Regex("[/.\\-]"))
-            val currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+            // שנה מחושבת מתאריך קבלת ה-SMS — לא השנה הנוכחית
+            val receivedYear = java.util.Calendar.getInstance()
+                .apply { timeInMillis = receivedAt }
+                .get(java.util.Calendar.YEAR)
             when (parts.size) {
                 2 -> {
-                    // DD.MM — שנה חסרה: נניח שנה נוכחית
+                    // DD.MM — שנה חסרה: נניח שנת קבלת הקופון
                     val day   = parts[0].toInt()
                     val month = parts[1].toInt() - 1
                     java.util.Calendar.getInstance()
-                        .apply { set(currentYear, month, day, 23, 59, 59) }
+                        .apply { set(receivedYear, month, day, 23, 59, 59) }
                         .timeInMillis
                 }
                 3 -> {
                     val day   = parts[0].toInt()
                     val month = parts[1].toInt() - 1
-                    val year  = parts[2].toInt().let { if (it < 100) 2000 + it else it }
+                    val year  = parts[2].toInt().let { y -> if (y < 100) 2000 + y else y }
                     java.util.Calendar.getInstance()
                         .apply { set(year, month, day, 23, 59, 59) }
                         .timeInMillis

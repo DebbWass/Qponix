@@ -11,6 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,6 +62,21 @@ fun HomeScreen(
     val snackbarHost = remember { SnackbarHostState() }
     LaunchedEffect(uiState.importMessage) {
         uiState.importMessage?.let { snackbarHost.showSnackbar(it); viewModel.dismissImportMessage() }
+    }
+
+    val pagerState = rememberPagerState(
+        initialPage = uiState.selectedTab.ordinal,
+        pageCount   = { CouponTab.entries.size }
+    )
+    // סוויפ → עדכון הטאב ב-ViewModel
+    LaunchedEffect(pagerState.currentPage) {
+        viewModel.onTabChange(CouponTab.entries[pagerState.currentPage])
+    }
+    // לחיצה על טאב → גלילה ל-Pager
+    LaunchedEffect(uiState.selectedTab) {
+        if (pagerState.currentPage != uiState.selectedTab.ordinal) {
+            pagerState.animateScrollToPage(uiState.selectedTab.ordinal)
+        }
     }
 
     Scaffold(
@@ -266,36 +283,49 @@ fun HomeScreen(
                 }
             }
 
-            // ─── רשימה ───
-            when {
-                uiState.isLoading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = PrimaryGreen)
-                    }
+            // ─── רשימה עם סוויפ בין טאבים ───
+            if (uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = PrimaryGreen)
                 }
-                uiState.currentCoupons.isEmpty() -> EmptyState(uiState.selectedTab)
-                else -> {
-                    LazyColumn(
-                        modifier       = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
-                    ) {
-                        items(uiState.currentCoupons, key = { it.id }) { coupon ->
-                            when (uiState.selectedTab) {
-                                CouponTab.DELETED -> DeletedCouponCard(
-                                    coupon    = coupon,
-                                    onClick   = { onCouponClick(coupon.id, uiState.currentCoupons.map { it.id }) },
-                                    onRestore = { viewModel.restoreCoupon(coupon.id) }
-                                )
-                                else -> CouponCard(
-                                    coupon            = coupon,
-                                    onClick           = { onCouponClick(coupon.id, uiState.currentCoupons.map { it.id }) },
-                                    onMarkUsed        = { viewModel.markAsUsed(coupon.id) },
-                                    isMultiSelectMode = uiState.isMultiSelectMode,
-                                    isSelected        = coupon.id in uiState.selectedIds,
-                                    onLongClick       = { viewModel.enterMultiSelectMode(coupon.id) },
-                                    onToggleSelect    = { viewModel.toggleSelection(coupon.id) },
-                                    isExpiringSoon    = coupon.id in uiState.expiringSoonIds
-                                )
+            } else {
+                HorizontalPager(
+                    state    = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val tab = CouponTab.entries[page]
+                    val pageCoupons = when (tab) {
+                        CouponTab.ACTIVE        -> uiState.activeCoupons
+                        CouponTab.EXPIRING_SOON -> uiState.expiringSoonCoupons
+                        CouponTab.EXPIRED       -> uiState.expiredCoupons
+                        CouponTab.ARCHIVED      -> uiState.archivedCoupons
+                        CouponTab.DELETED       -> uiState.deletedCoupons
+                    }
+                    if (pageCoupons.isEmpty()) {
+                        EmptyState(tab)
+                    } else {
+                        LazyColumn(
+                            modifier       = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
+                        ) {
+                            items(pageCoupons, key = { it.id }) { coupon ->
+                                when (tab) {
+                                    CouponTab.DELETED -> DeletedCouponCard(
+                                        coupon    = coupon,
+                                        onClick   = { onCouponClick(coupon.id, pageCoupons.map { it.id }) },
+                                        onRestore = { viewModel.restoreCoupon(coupon.id) }
+                                    )
+                                    else -> CouponCard(
+                                        coupon            = coupon,
+                                        onClick           = { onCouponClick(coupon.id, pageCoupons.map { it.id }) },
+                                        onMarkUsed        = { viewModel.markAsUsed(coupon.id) },
+                                        isMultiSelectMode = uiState.isMultiSelectMode,
+                                        isSelected        = coupon.id in uiState.selectedIds,
+                                        onLongClick       = { viewModel.enterMultiSelectMode(coupon.id) },
+                                        onToggleSelect    = { viewModel.toggleSelection(coupon.id) },
+                                        isExpiringSoon    = coupon.id in uiState.expiringSoonIds
+                                    )
+                                }
                             }
                         }
                     }
@@ -315,7 +345,7 @@ private fun DarkSearchBar(query: String, onQueryChange: (String) -> Unit) {
         modifier      = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        placeholder   = { Text("חפש קופון...", color = TextSecondary) },
+        placeholder   = { Text("חפש לפי קוד, שם, טקסט...", color = TextSecondary) },
         leadingIcon   = { Icon(Icons.Default.Search, null, tint = TextSecondary) },
         trailingIcon  = {
             if (query.isNotEmpty()) {
