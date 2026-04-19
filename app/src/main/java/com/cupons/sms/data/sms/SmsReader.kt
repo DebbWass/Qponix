@@ -31,7 +31,7 @@ class SmsReader @Inject constructor(
      *
      * @param idsToSkip  מזהי SMS לדלג עליהם (כבר יובאו או נדחו בעבר)
      */
-    fun readAll(idsToSkip: Set<String>): List<RawSmsMessage> {
+    fun readAll(idsToSkip: Set<String>, customKeywords: List<String> = emptyList()): List<RawSmsMessage> {
         val results = mutableListOf<RawSmsMessage>()
 
         val projection = arrayOf(
@@ -74,7 +74,7 @@ class SmsReader @Inject constructor(
                         if (smsId in idsToSkip) continue
 
                         // נסה לפרסר
-                        val parsed = parser.parse(body, sender, date) ?: continue
+                        val parsed = parser.parse(body, sender, date, customKeywords) ?: continue
 
                         results.add(RawSmsMessage(smsId, sender, body, date, parsed))
                     }

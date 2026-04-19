@@ -130,7 +130,8 @@ class HomeViewModel @Inject constructor(
         val filtered = if (query.isBlank()) coupons else coupons.filter { coupon ->
             coupon.couponCode.contains(query, ignoreCase = true) ||
             coupon.sender.contains(query, ignoreCase = true) ||
-            coupon.merchantName?.contains(query, ignoreCase = true) == true
+            coupon.merchantName?.contains(query, ignoreCase = true) == true ||
+            coupon.rawSmsBody?.contains(query, ignoreCase = true) == true
         }
         // מניעת כפילויות: שמור רק קופון אחד לכל קוד (העדכני ביותר — ראשון ברשימה)
         return filtered.distinctBy { it.couponCode.uppercase().trim() }
@@ -273,7 +274,10 @@ class HomeViewModel @Inject constructor(
 
     fun dismissAllPending() {
         viewModelScope.launch {
-            _uiState.value.pendingCoupons.forEach { repository.deleteCoupon(it.id) }
+            _uiState.value.pendingCoupons.forEach { coupon ->
+                coupon.smsId?.let { prefs.addRejectedSmsId(it) }
+                repository.deleteCoupon(coupon.id)
+            }
         }
     }
 }
