@@ -68,9 +68,9 @@ fun HomeScreen(
         initialPage = uiState.selectedTab.ordinal,
         pageCount   = { CouponTab.entries.size }
     )
-    // סוויפ → עדכון הטאב ב-ViewModel
-    LaunchedEffect(pagerState.currentPage) {
-        viewModel.onTabChange(CouponTab.entries[pagerState.currentPage])
+    // סוויפ → עדכון הטאב ב-ViewModel (settledPage מתעדכן רק כשהאנימציה הסתיימה)
+    LaunchedEffect(pagerState.settledPage) {
+        viewModel.onTabChange(CouponTab.entries[pagerState.settledPage])
     }
     // לחיצה על טאב → גלילה ל-Pager
     LaunchedEffect(uiState.selectedTab) {

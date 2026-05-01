@@ -131,7 +131,7 @@ class SettingsViewModel @Inject constructor(
                 var updated = 0
                 coupons.forEach { entity ->
                     val body = entity.rawSmsBody ?: return@forEach
-                    val expiresAt = smsParser.extractExpiryOnly(body)
+                    val expiresAt = smsParser.extractExpiryOnly(body, entity.receivedAt)
                     if (expiresAt != null) {
                         dao.updateExpiresAt(entity.id, expiresAt)
                         updated++
