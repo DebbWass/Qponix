@@ -7,7 +7,7 @@
 | Android Studio | Ladybug (2024.2+) |
 | JDK | 17 |
 | Android SDK | API 26+ (Android 8.0) |
-| Gradle | 8.7+ |
+| Gradle | 9.0 (מגיע עם ה-wrapper) |
 | Git | כל גרסה |
 
 ---

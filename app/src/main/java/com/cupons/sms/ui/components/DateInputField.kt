@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import com.cupons.sms.ui.theme.PrimaryGreen
+import com.cupons.sms.util.DateUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -103,16 +104,8 @@ fun DateInputField(
     OutlinedTextField(
         value         = value,
         onValueChange = { raw ->
-            // פרמוט אוטומטי: מוסיף "/" אחרי יום ואחרי חודש.
-            // בטוח לקרוא כפול — פורמט על מחרוזת מפורמטת כבר מחזיר את אותה מחרוזת.
-            val digits = raw.filter { it.isDigit() }.take(8)
-            val formatted = buildString {
-                digits.forEachIndexed { i, c ->
-                    append(c)
-                    if (i == 1 || i == 3) append("/")
-                }
-            }
-            onValueChange(formatted)
+            // פרמוט אוטומטי: מוסיף "/" אחרי יום ואחרי חודש (helper משותף).
+            onValueChange(DateUtils.formatDateInput(raw))
         },
         label         = { Text(label) },
         placeholder   = { Text("DD/MM/YYYY") },
@@ -133,32 +126,14 @@ fun DateInputField(
 }
 
 /**
- * פרסור DD/MM/YYYY לUnix timestamp (ms) — לשמירה ב-Room.
- * מחזיר null אם הפורמט לא תקין.
+ * פרסור DD/MM/YYYY לUnix timestamp (ms) בסוף היום — לשמירה ב-Room.
+ * עוטף את [DateUtils.parseDateToEndOfDayMillis] כדי לשמור על נתיב ה-import הקיים.
  */
-fun parseDateToMillis(dateStr: String): Long? {
-    if (dateStr.length < 10) return null
-    return try {
-        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        sdf.isLenient = false
-        val parsed = sdf.parse(dateStr.trim()) ?: return null
-        // שמור את 23:59:59 — תוקף עד סוף היום
-        val cal = Calendar.getInstance()
-        cal.time = parsed
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.timeInMillis
-    } catch (e: Exception) { null }
-}
+fun parseDateToMillis(dateStr: String): Long? =
+    DateUtils.parseDateToEndOfDayMillis(dateStr)
 
 /**
  * המרת Unix timestamp לפורמט "DD/MM/YYYY".
  */
-fun millisToDateString(millis: Long?): String {
-    if (millis == null) return ""
-    return try {
-        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        sdf.format(Date(millis))
-    } catch (e: Exception) { "" }
-}
+fun millisToDateString(millis: Long?): String =
+    DateUtils.millisToDateString(millis)

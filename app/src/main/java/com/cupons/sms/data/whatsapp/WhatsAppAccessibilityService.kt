@@ -15,6 +15,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -41,6 +42,9 @@ class WhatsAppAccessibilityService : AccessibilityService() {
         private const val TAG            = "WAAccessibility"
         private const val WHATSAPP_PKG   = "com.whatsapp"
         private const val WHATSAPP_BUSS  = "com.whatsapp.w4b"
+
+        // בסיס ל-ID התראות "קופון חדש", תואם ל-SmsReceiver
+        private const val NEW_COUPON_NOTIF_BASE = 200_000L
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -66,7 +70,11 @@ class WhatsAppAccessibilityService : AccessibilityService() {
 
             Log.d(TAG, "WhatsApp notification: ${tickerText.take(80)}")
 
-            val parsed = parser.parse(tickerText, sender, receivedAt) ?: return@launch
+            // סימון מקור קריא ("WhatsApp") במקום שם החבילה — כדי שלא יזהם את שם העסק
+            val customKeywords  = prefs.customKeywords.first().toList()
+            val customBlacklist = prefs.customBlacklist.first().toList()
+            val parsed = parser.parse(tickerText, "WhatsApp", receivedAt, customKeywords, customBlacklist)
+                ?: return@launch
 
             val tempId = "${sender}_wa_${receivedAt}"
             val rejectedIds = prefs.getRejectedSmsIds()
@@ -95,7 +103,7 @@ class WhatsAppAccessibilityService : AccessibilityService() {
                     notificationHelper.notifyNewCoupon(
                         couponCode   = parsed.couponCode,
                         merchantName = parsed.merchantName,
-                        notifId      = (receivedAt % Int.MAX_VALUE).toInt()
+                        notifId      = (NEW_COUPON_NOTIF_BASE + insertedId % 100_000).toInt()
                     )
                 }
             }
@@ -109,5 +117,11 @@ class WhatsAppAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.d(TAG, "WhatsApp Accessibility Service connected")
+    }
+
+    override fun onDestroy() {
+        // ביטול ה-scope כדי למנוע דליפת coroutines בעת ניתוק השירות
+        scope.cancel()
+        super.onDestroy()
     }
 }

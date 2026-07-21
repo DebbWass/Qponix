@@ -142,6 +142,39 @@ class AppPreferences @Inject constructor(
         context.dataStore.edit { it[CUSTOM_BLACKLIST] = words.joinToString(",") }
     }
 
+    /**
+     * הוספה/הסרה אטומיות של מילות מפתח/רשימה שחורה.
+     * כל ה-read-modify-write מתבצע בתוך edit{} יחיד (טרנזקציוני) —
+     * מונע "lost update" כששתי הוספות מהירות קוראות אותו snapshot.
+     * הקידוד הוא CSV, לכן פסיקים מנוקים בקלט (אחרת הם שוברים את הפירוק).
+     */
+    suspend fun addCustomKeyword(word: String) = addToCsvSet(CUSTOM_KEYWORDS, word)
+    suspend fun removeCustomKeyword(word: String) = removeFromCsvSet(CUSTOM_KEYWORDS, word)
+    suspend fun addBlacklistWord(word: String) = addToCsvSet(CUSTOM_BLACKLIST, word)
+    suspend fun removeBlacklistWord(word: String) = removeFromCsvSet(CUSTOM_BLACKLIST, word)
+
+    private suspend fun addToCsvSet(key: Preferences.Key<String>, rawWord: String) {
+        val word = rawWord.trim().replace(",", "")
+        if (word.isBlank()) return
+        context.dataStore.edit { prefs ->
+            val current = prefs[key].toCsvSet()
+            current.add(word)
+            prefs[key] = current.joinToString(",")
+        }
+    }
+
+    private suspend fun removeFromCsvSet(key: Preferences.Key<String>, rawWord: String) {
+        val word = rawWord.trim().replace(",", "")
+        context.dataStore.edit { prefs ->
+            val current = prefs[key].toCsvSet()
+            current.remove(word)
+            prefs[key] = current.joinToString(",")
+        }
+    }
+
+    private fun String?.toCsvSet(): MutableSet<String> =
+        this?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
+
     // ─── WhatsApp ───
 
     val whatsappEnabled: Flow<Boolean> =

@@ -7,10 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cupons.sms.domain.model.Coupon
 import com.cupons.sms.domain.repository.CouponRepository
+import com.cupons.sms.util.DateUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 import javax.inject.Inject
 
 /**
@@ -44,7 +43,7 @@ class AddCouponViewModel @Inject constructor(
     fun onCouponCodeChange(v: String)   { couponCode    = v.uppercase().filter { it.isLetterOrDigit() || it == '-' }; couponCodeError = null }
     fun onMerchantNameChange(v: String) { merchantName  = v }
     fun onAmountChange(v: String)       { amount        = v.filter { it.isDigit() || it == '.' } }
-    fun onExpiryDateChange(v: String)   { expiryDate    = formatExpiryInput(v) }
+    fun onExpiryDateChange(v: String)   { expiryDate    = DateUtils.formatDateInput(v) }
     fun onWebsiteUrlChange(v: String)   { websiteUrl    = v }
     fun onNotesChange(v: String)        { notes         = v }
 
@@ -56,7 +55,7 @@ class AddCouponViewModel @Inject constructor(
         }
 
         val amountDouble = amount.toDoubleOrNull()
-        val expiry       = parseExpiryDate(expiryDate)
+        val expiry       = DateUtils.parseDateToEndOfDayMillis(expiryDate)
 
         val coupon = Coupon(
             id               = 0,
@@ -85,28 +84,8 @@ class AddCouponViewModel @Inject constructor(
         }
     }
 
-    // ─── Helpers ───
-
-    /**
-     * פרמוט אוטומטי של שדה תאריך:
-     * מוסיף "/" אחרי יום ואחרי חודש.
-     */
-    private fun formatExpiryInput(raw: String): String {
-        val digits = raw.filter { it.isDigit() }.take(8)
-        return buildString {
-            digits.forEachIndexed { i, c ->
-                append(c)
-                if (i == 1 || i == 3) append("/")
-            }
-        }
-    }
-
-    private fun parseExpiryDate(dateStr: String): Long? {
-        if (dateStr.length < 8) return null
-        return try {
-            val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            sdf.isLenient = false
-            sdf.parse(dateStr.trim())?.time
-        } catch (e: Exception) { null }
+    /** איפוס דגל השמירה — נקרא לאחר שהניווט חזרה טופל, למניעת re-fire. */
+    fun onSavedHandled() {
+        isSaved = false
     }
 }

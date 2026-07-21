@@ -10,10 +10,11 @@ import kotlinx.coroutines.flow.Flow
  * כל שאילתות ה-Flow יפעילו emit חדש בכל שינוי בטבלה —
  * הUI יתעדכן אוטומטית ללא polling.
  *
- * ארבעה Flows לארבעת הטאבים:
- *  - observeNonArchivedCoupons  → טאב "בתוקף" + "פגי תוקף" (מפוצל בVM לפי isExpired)
+ * Flows לטאבים:
+ *  - observeNonArchivedCoupons  → "בתוקף" + "פג בקרוב" + "פגי תוקף" (מפוצל בVM לפי expires_at)
  *  - observeArchivedCoupons     → טאב "ארכיון"
  *  - observeDeletedCoupons      → טאב "נמחקו"
+ *  - observePendingCoupons      → קופונים ממתינים לאישור (מוצגים בראש "בתוקף")
  */
 @Dao
 interface CouponDao {
@@ -89,6 +90,19 @@ interface CouponDao {
      */
     @Query("SELECT sms_id FROM coupons WHERE sms_id IS NOT NULL")
     suspend fun getAllSmsIds(): List<String>
+
+    /**
+     * ספירת קופונים קיימים (לא-מחוקים) עם אותו קוד ואותו שולח —
+     * הגנה מפני כפילויות תוכן: אותה הודעה יכולה להגיע גם דרך
+     * SmsReceiver (sms_id סינתטי) וגם דרך סריקת ה-Inbox (sms_id של ה-Provider).
+     */
+    @Query("""
+        SELECT COUNT(*) FROM coupons
+        WHERE coupon_code = :code
+          AND sender = :sender
+          AND is_deleted = 0
+    """)
+    suspend fun countByCodeAndSender(code: String, sender: String): Int
 
     // ─── Write ───
 

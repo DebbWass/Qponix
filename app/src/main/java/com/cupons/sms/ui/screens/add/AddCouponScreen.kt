@@ -43,7 +43,10 @@ fun AddCouponScreen(
 ) {
     // ניווט חזרה לאחר שמירה
     LaunchedEffect(viewModel.isSaved) {
-        if (viewModel.isSaved) onNavigateBack()
+        if (viewModel.isSaved) {
+            viewModel.onSavedHandled()
+            onNavigateBack()
+        }
     }
 
     val gradient = Brush.horizontalGradient(BrandGradient)

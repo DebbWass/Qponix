@@ -149,7 +149,9 @@ fun StatisticsScreen(
                                 fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
 
-                        val maxCount = uiState.topMerchants.maxOf { it.usageCount }.toFloat()
+                        // הגנה מחלוקה באפס — אם כל הספירות 0, הרוחב יחושב מול 1
+                        val maxCount = uiState.topMerchants.maxOf { it.usageCount }
+                            .toFloat().coerceAtLeast(1f)
                         uiState.topMerchants.forEach { merchant ->
                             Column(modifier = Modifier.padding(vertical = 6.dp)) {
                                 Row(
@@ -268,7 +270,7 @@ fun StatisticsScreen(
                         Spacer(Modifier.height(16.dp))
                         Text("אין עדיין נתונים", color = TextPrimary,
                             fontWeight = FontWeight.SemiBold)
-                        Text("מש/מים קופונים כדי לראות סטטיסטיקות",
+                        Text("ממשו קופונים כדי לראות סטטיסטיקות",
                             color = TextSecondary, fontSize = 13.sp)
                     }
                 }

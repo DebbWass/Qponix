@@ -3,6 +3,7 @@ package com.cupons.sms.data.sms
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.util.Calendar
 
 /**
  * Unit tests for SmsParser.
@@ -16,6 +17,16 @@ class SmsParserTest {
     fun setup() {
         parser = SmsParser()
     }
+
+    /** חותמת זמן ליום/חודש/שנה מקומיים בצהריים (יציב מול חלון החסד) */
+    private fun timestampOf(year: Int, month1to12: Int, day: Int): Long =
+        Calendar.getInstance().apply {
+            set(year, month1to12 - 1, day, 12, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+    private fun yearOf(millis: Long): Int =
+        Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.YEAR)
 
     // ─── Blacklist tests ───
 
@@ -197,5 +208,146 @@ class SmsParserTest {
     fun `invoice - should be blacklisted`() {
         val sms = "חשבונית עבור הזמנתך מספר 8921. סכום: ₪450"
         assertNull(parser.parse(sms, "Shop", System.currentTimeMillis()))
+    }
+
+    // ─── parseDate: year rollover (fix 1.5) ───
+
+    @Test
+    fun `two-part date received in december rolls to next year`() {
+        // התקבל 20/12/2025, תפוגה "עד 5.1" → צריך להיות 5 בינואר 2026
+        val received = timestampOf(2025, 12, 20)
+        val sms = "קופון: NEWYEAR. בתוקף עד 5.1"
+        val result = parser.parse(sms, "Store", received)
+        assertNotNull(result)
+        assertNotNull(result!!.expiresAt)
+        assertEquals(2026, yearOf(result.expiresAt!!))
+        assertTrue("expiry must be in the future", result.expiresAt!! > received)
+    }
+
+    @Test
+    fun `two-part date in same year does not roll over`() {
+        // התקבל 01/03/2025, תפוגה "עד 11.4" → 11 באפריל 2025 (אותה שנה)
+        val received = timestampOf(2025, 3, 1)
+        val sms = "קופון: SPRING. בתוקף עד 11.4"
+        val result = parser.parse(sms, "Store", received)
+        assertNotNull(result)
+        assertEquals(2025, yearOf(result!!.expiresAt!!))
+    }
+
+    @Test
+    fun `two-part date within grace window keeps same year`() {
+        // התקבל 27/02, תפוגה "28.2" — אתמול/היום בטווח החסד → לא לגלגל
+        val received = timestampOf(2025, 2, 27)
+        val sms = "קופון: GRACEDAY. בתוקף עד 28.2"
+        val result = parser.parse(sms, "Store", received)
+        assertNotNull(result)
+        assertEquals(2025, yearOf(result!!.expiresAt!!))
+    }
+
+    @Test
+    fun `three-part date with explicit year is authoritative`() {
+        val received = timestampOf(2025, 12, 1)
+        val sms = "קופון: EXPLICIT. בתוקף עד 10.3.26"
+        val result = parser.parse(sms, "Store", received)
+        assertNotNull(result)
+        assertEquals(2026, yearOf(result!!.expiresAt!!))
+    }
+
+    @Test
+    fun `invalid date is rejected but coupon still parses`() {
+        // "32.13" אינו תאריך תקין → expiresAt null, אך הקופון עצמו תקף
+        val sms = "קופון: BADDATE. בתוקף עד 32.13"
+        val result = parser.parse(sms, "Store", System.currentTimeMillis())
+        assertNotNull(result)
+        assertEquals("BADDATE", result!!.couponCode)
+        assertNull(result.expiresAt)
+    }
+
+    // ─── Confidence clamp (fix 1.6) ───
+
+    @Test
+    fun `confidence never exceeds one even with matana4u boost`() {
+        // matana4u + amount + expiry + url → 0.5+0.25+0.15+0.10+0.20 = 1.20 → clamp 1.0
+        val sms = "כרטיס מתנה: MEGA1234. שווי ₪500 בתוקף עד 31/12/2025. " +
+            "מימוש: https://matana4u.co.il/redeem/MEGA1234"
+        val result = parser.parse(sms, "matana4u", System.currentTimeMillis())
+        assertNotNull(result)
+        assertTrue("confidence must be clamped to <= 1.0", result!!.confidence <= 1.0f)
+        assertEquals(1.0f, result.confidence)
+    }
+
+    // ─── Custom keywords / blacklist (fixes 2.1 / H1 / H2) ───
+
+    @Test
+    fun `custom keyword enables otherwise-skipped sms`() {
+        // "מבצע" אינו מילת מפתח חזקה כברירת מחדל, וקוד ה-hashtag נחלץ ללא מילת קוד.
+        // בלי custom keyword אין מילת מפתח חזקה → נדחה.
+        val sms = "מבצע ענק! #DEAL2024 ממתין לך"
+        assertNull(parser.parse(sms, "Store", System.currentTimeMillis()))
+
+        val result = parser.parse(
+            sms, "Store", System.currentTimeMillis(),
+            customKeywords = listOf("מבצע")
+        )
+        assertNotNull(result)
+        assertEquals("DEAL2024", result!!.couponCode)
+    }
+
+    @Test
+    fun `custom blacklist word blocks an otherwise-valid coupon`() {
+        val sms = "קוד קופון: SAVE50 — פנימי בלבד, אל תשלח"
+        // ללא רשימה שחורה מותאמת — נקלט
+        assertNotNull(parser.parse(sms, "Store", System.currentTimeMillis()))
+        // עם מילה ברשימה השחורה — נדחה
+        assertNull(
+            parser.parse(
+                sms, "Store", System.currentTimeMillis(),
+                customBlacklist = listOf("פנימי בלבד")
+            )
+        )
+    }
+
+    @Test
+    fun `extractExpiryOnly reflects year rollover`() {
+        val received = timestampOf(2025, 12, 15)
+        val expiry = parser.extractExpiryOnly("בתוקף עד 3.1", received)
+        assertNotNull(expiry)
+        assertEquals(2026, yearOf(expiry!!))
+    }
+
+    // ─── gogift gift-card links ───
+
+    @Test
+    fun `gogift url code is extracted from path`() {
+        val sms = "מתנה בשבילך! למימוש: http://giftcard.gogift.co.il/redeem/GIFT7788"
+        val result = parser.parse(sms, "GoGift", System.currentTimeMillis())
+        assertNotNull(result)
+        assertEquals("GIFT7788", result!!.couponCode)
+    }
+
+    @Test
+    fun `gogift code directly after domain`() {
+        val sms = "כרטיס מתנה: https://giftcard.gogift.co.il/ABC12345"
+        val result = parser.parse(sms, "GoGift", System.currentTimeMillis())
+        assertNotNull(result)
+        assertEquals("ABC12345", result!!.couponCode)
+    }
+
+    @Test
+    fun `gogift link is a certain coupon - high confidence`() {
+        val sms = "מתנה: http://giftcard.gogift.co.il/redeem/GIFT7788"
+        val result = parser.parse(sms, "GoGift", System.currentTimeMillis())
+        assertNotNull(result)
+        // base 0.5 + url 0.10 + certain-domain boost 0.20 = 0.80 → auto-import
+        assertTrue(result!!.confidence >= SmsParser.CONFIDENCE_AUTO_IMPORT)
+        assertFalse(result.requiresUserConfirmation)
+    }
+
+    @Test
+    fun `gogift path word without digits is not mistaken for a code`() {
+        // "redeem" בלבד (ללא קוד עם ספרה אחריו) לא ייחשב כקוד
+        val sms = "מתנה בדרך: http://giftcard.gogift.co.il/redeem"
+        val result = parser.parse(sms, "GoGift", System.currentTimeMillis())
+        assertNull(result)
     }
 }

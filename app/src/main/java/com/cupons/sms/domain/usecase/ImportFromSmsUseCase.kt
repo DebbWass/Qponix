@@ -27,13 +27,14 @@ class ImportFromSmsUseCase @Inject constructor(
         // IDs שיש לדלג עליהם — כבר יובאו לDB או נדחו על ידי המשתמשת
         val existingIds    = repository.getImportedSmsIds()
         val rejectedIds    = prefs.getRejectedSmsIds()
-        val idsToSkip      = existingIds + rejectedIds
-        val customKeywords = prefs.customKeywords.first().toList()
+        val idsToSkip       = existingIds + rejectedIds
+        val customKeywords  = prefs.customKeywords.first().toList()
+        val customBlacklist = prefs.customBlacklist.first().toList()
         Log.d(TAG, "idsToSkip: ${idsToSkip.size} (existing=${existingIds.size}, rejected=${rejectedIds.size})")
         Log.d(TAG, "customKeywords: $customKeywords")
 
         // סריקה — SmsReader מדלג אוטומטית על idsToSkip
-        val rawMessages = smsReader.readAll(idsToSkip, customKeywords)
+        val rawMessages = smsReader.readAll(idsToSkip, customKeywords, customBlacklist)
         Log.d(TAG, "Candidates after skip: ${rawMessages.size}")
 
         var imported = 0

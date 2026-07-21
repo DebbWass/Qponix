@@ -28,10 +28,11 @@ class CuponsApplication : Application(), Configuration.Provider {
 
     private fun scheduleExpiryWorker() {
         val wm = WorkManager.getInstance(this)
-        // תזמון יומי
+        // תזמון יומי — KEEP כדי לא לאפס את טיימר ה-24ש' בכל פתיחת אפליקציה.
+        // ההרצה המיידית שמתחת דואגת להתראות מיד עם הפתיחה ממילא.
         wm.enqueueUniquePeriodicWork(
             ExpiryNotificationWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.REPLACE,
+            ExistingPeriodicWorkPolicy.KEEP,
             ExpiryNotificationWorker.buildRequest()
         )
         // הרצה מיידית כדי לשלוח התראות מיד עם פתיחת האפליקציה

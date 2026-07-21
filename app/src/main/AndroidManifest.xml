@@ -13,6 +13,16 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- VIBRATE: רטט בהתראה -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- WRITE_EXTERNAL_STORAGE: כתיבת קובץ גיבוי בתיקיית ההורדות ב-API 26–28 בלבד.
+         מ-API 29+ משתמשים ב-MediaStore ללא הרשאה זו. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!-- הרשאות ה-SMS מרמזות על חומרת טלפוניה — מסמנים כלא-חובה כדי
+         שהאפליקציה תותקן גם במכשירים ללא טלפוניה (טאבלטים / ChromeOS). -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
 
     <application
         android:name=".CuponsApplication"
@@ -59,7 +69,9 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- ─── WorkManager Initializer ─── -->
+        <!-- ─── WorkManager: אתחול on-demand ─── -->
+        <!-- האפליקציה מממשת Configuration.Provider, לכן מסירים את המאתחל
+             הדיפולטי של WorkManager (androidx.startup) כדי למנוע אתחול כפול. -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
@@ -67,7 +79,8 @@
             tools:node="merge">
             <meta-data
                 android:name="androidx.work.WorkManagerInitializer"
-                android:value="androidx.startup" />
+                android:value="androidx.startup"
+                tools:node="remove" />
         </provider>
 
     </application>

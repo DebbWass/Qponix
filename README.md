@@ -1,9 +1,5 @@
 # Qponix — ניהול קופונים חכם
 
-<p align="center">
-  <img src="docs/assets/logo_placeholder.png" width="120" alt="Qponix Logo"/>
-</p>
-
 אפליקציית Android לניהול קופונים וגיפטקארדים דיגיטליים שמתקבלים ב-SMS.  
 הכל במקום אחד, ללא עלויות, ללא ענן — הכל מקומי ופרטי.
 
@@ -41,7 +37,7 @@
 | Android Studio | Ladybug (2024.2+) |
 | JDK | 17 |
 | Android SDK | API 26+ |
-| Gradle | 8.7+ |
+| Gradle | 9.0 (מגיע עם ה-wrapper) |
 
 ### פתיחת הפרויקט
 
@@ -108,7 +104,7 @@ app/src/main/java/com/cupons/sms/
 │   ├── navigation/  # AppNavigation (NavHost)
 │   └── theme/       # Colors, Theme
 ├── di/              # Hilt AppModule
-└── util/            # ExportManager, NotificationHelper
+└── util/            # ExportManager, ImportManager, NotificationHelper, DateUtils
 ```
 
 ---
@@ -123,6 +119,21 @@ app/src/main/java/com/cupons/sms/
 | `INTERNET` | פתיחת קישורי מימוש בדפדפן |
 
 > כל הנתונים מאוחסנים **מקומית בלבד** — אין שרת, אין ענן, אין שיתוף עם צד שלישי.
+
+---
+
+## בדיקות
+
+הרצת מערך הבדיקות (JVM, ללא צורך באמולטור):
+
+```bash
+./gradlew testDebugUnitTest      # 111 בדיקות JVM (Robolectric + MockK + Turbine)
+./gradlew lint                   # ניתוח סטטי (0 שגיאות)
+./gradlew assembleDebug          # בניית APK
+```
+
+הבדיקות המכשירניות (`androidTest/CouponDaoTest`) דורשות מכשיר/אמולטור.  
+פירוט מלא — ראה [docs/TESTING.md](docs/TESTING.md).
 
 ---
 

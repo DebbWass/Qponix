@@ -29,6 +29,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -207,6 +208,23 @@ private fun CouponDetailPage(
         },
         containerColor = BgDeep
     ) { padding ->
+        if (uiState.notFound) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text      = "הקופון לא נמצא (ייתכן שנמחק)",
+                    color     = TextSecondary,
+                    textAlign = TextAlign.Center
+                )
+            }
+            return@Scaffold
+        }
+
         if (uiState.isLoading || uiState.coupon == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = PrimaryGreen)
@@ -556,10 +574,12 @@ private fun UpdateBalanceDialog(
     onConfirm: (Double, String?, Long?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var balanceText by remember {
+    // מפתח לפי coupon — כדי שהערכים ההתחלתיים ירועננו אם הקופון נטען לאחר
+    // הרכבת הדיאלוג (אחרת נלכדים ערכים ריקים ולא מתעדכנים).
+    var balanceText by remember(coupon) {
         mutableStateOf(coupon?.remainingBalance?.toLong()?.toString() ?: "")
     }
-    var expiryText by remember {
+    var expiryText by remember(coupon) {
         mutableStateOf(millisToDateString(coupon?.expiresAt))
     }
     var note  by remember { mutableStateOf("") }

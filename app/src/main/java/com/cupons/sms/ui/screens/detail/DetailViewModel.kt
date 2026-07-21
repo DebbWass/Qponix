@@ -40,7 +40,13 @@ class DetailViewModel @AssistedInject constructor(
     private fun loadCoupon() {
         viewModelScope.launch {
             val coupon = repository.getCouponById(couponId)
-            _uiState.update { it.copy(coupon = coupon, isLoading = false) }
+            _uiState.update {
+                it.copy(
+                    coupon    = coupon,
+                    isLoading = false,
+                    notFound  = coupon == null
+                )
+            }
         }
     }
 
@@ -111,6 +117,7 @@ data class DetailUiState(
     val coupon: Coupon? = null,
     val usageLog: List<UsageLog> = emptyList(),
     val isLoading: Boolean = true,
+    val notFound: Boolean = false,
     val isMarkedUsed: Boolean = false,
     val isDeleted: Boolean = false,
     val successMessage: String? = null

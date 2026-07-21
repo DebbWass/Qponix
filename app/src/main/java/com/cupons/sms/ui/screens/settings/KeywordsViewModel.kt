@@ -7,7 +7,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -34,22 +33,18 @@ class KeywordsViewModel @Inject constructor(
     )
 
     fun addKeyword(word: String) = viewModelScope.launch {
-        val current = prefs.customKeywords.first()
-        prefs.setCustomKeywords(current + word)
+        prefs.addCustomKeyword(word)
     }
 
     fun removeKeyword(word: String) = viewModelScope.launch {
-        val current = prefs.customKeywords.first()
-        prefs.setCustomKeywords(current - word)
+        prefs.removeCustomKeyword(word)
     }
 
     fun addBlacklist(word: String) = viewModelScope.launch {
-        val current = prefs.customBlacklist.first()
-        prefs.setCustomBlacklist(current + word)
+        prefs.addBlacklistWord(word)
     }
 
     fun removeBlacklist(word: String) = viewModelScope.launch {
-        val current = prefs.customBlacklist.first()
-        prefs.setCustomBlacklist(current - word)
+        prefs.removeBlacklistWord(word)
     }
 }

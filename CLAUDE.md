@@ -46,8 +46,9 @@ onCouponClick = { couponId: Long, couponIds: List<Long> -> ... }
 `HomeScreen` passes **both** the clicked coupon ID and the full current-tab ID list.
 
 ### Pending Coupons
-Low-confidence SMS parses (< 0.6) are stored with `is_pending = 1` and shown at the top
-of the Active tab for user confirmation/rejection.
+When a code is found the base confidence is 0.5, so scores are never below 0.5. Parses with
+confidence in 0.5–0.59 (< 0.6) are stored with `is_pending = 1` and shown at the top of the
+Active tab for user confirmation/rejection. Confidence is clamped to `[0,1]`.
 
 ### SMS Parser
 6-stage pipeline in `SmsParser.kt`:
@@ -55,8 +56,11 @@ of the Active tab for user confirmation/rejection.
 3. Confidence scoring → 4. Amount → 5. Expiry/URL/Merchant
 
 ## Database
-Two tables: `coupons` (21 columns) and `usage_log` (5 columns).
+Room v3 (migrations 1→2→3). Two tables: `coupons` (21 columns) and `usage_log` (6 columns).
 Soft delete — coupons are never physically deleted; `is_deleted = 1` moves them to "Deleted" tab.
+Cross-DAO writes (`updateBalance`, `markAsUsed`) run inside `db.withTransaction {}`.
+Content dedup: `insertCoupon` rejects an SMS/WhatsApp-sourced coupon (`smsId != null`) whose
+`coupon_code` + `sender` already exists (guards against real-time vs inbox-scan double import).
 
 ## Language & Locale
 All UI text is in **Hebrew**. RTL layout is enabled in `AndroidManifest.xml`.

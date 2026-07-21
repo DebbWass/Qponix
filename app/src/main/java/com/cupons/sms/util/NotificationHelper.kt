@@ -1,12 +1,16 @@
 package com.cupons.sms.util
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.cupons.sms.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -70,7 +74,7 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        NotificationManagerCompat.from(context).notify(notifId, notification)
+        safeNotify(notifId, notification)
     }
 
     fun notifyNewCoupon(couponCode: String, merchantName: String?, notifId: Int) {
@@ -95,6 +99,29 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
 
-        NotificationManagerCompat.from(context).notify(notifId, notification)
+        safeNotify(notifId, notification)
+    }
+
+    /**
+     * בדיקת הרשאת POST_NOTIFICATIONS (נדרשת מ-API 33). לפני כן — תמיד מותר.
+     */
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(
+            context, Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * שליחת התראה בטוחה — בודק הרשאה, וגם עוטף ב-try/catch כי ההרשאה
+     * עלולה להישלל בין הבדיקה לקריאה (וגם משתיק את אזהרת ה-lint).
+     */
+    private fun safeNotify(notifId: Int, notification: android.app.Notification) {
+        if (!canPostNotifications()) return
+        try {
+            NotificationManagerCompat.from(context).notify(notifId, notification)
+        } catch (e: SecurityException) {
+            // ההרשאה נשללה — מתעלמים בשקט
+        }
     }
 }

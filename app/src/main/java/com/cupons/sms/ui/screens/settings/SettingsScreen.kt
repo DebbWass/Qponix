@@ -175,11 +175,11 @@ fun SettingsScreen(
                     )
                     OutlinedButton(
                         onClick  = { viewModel.rescanExpiryDates() },
-                        enabled  = !backupState.isBackingUp,
+                        enabled  = !backupState.isRescanning,
                         colors   = ButtonDefaults.outlinedButtonColors(contentColor = PrimaryGreenLight),
                         border   = BorderStroke(1.dp, Brush.linearGradient(BrandGradient))
                     ) {
-                        if (backupState.isBackingUp) {
+                        if (backupState.isRescanning) {
                             CircularProgressIndicator(
                                 modifier    = Modifier.size(14.dp),
                                 strokeWidth = 2.dp,

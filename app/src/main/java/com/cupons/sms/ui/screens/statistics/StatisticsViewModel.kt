@@ -7,6 +7,10 @@ import com.cupons.sms.data.db.dao.MerchantUsage
 import com.cupons.sms.data.db.dao.MonthlyUsage
 import com.cupons.sms.data.db.dao.UsageLogDao
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,31 +37,44 @@ class StatisticsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(StatisticsUiState())
     val uiState: StateFlow<StatisticsUiState> = _uiState.asStateFlow()
 
+    // מזהה טעינה נוכחי — ריצת רענון חדשה מבטלת קודמת (מונע חפיפה/last-write-wins)
+    private var loadJob: Job? = null
+
     init {
         loadStatistics()
     }
 
     fun loadStatistics() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val totalSaved       = usageLogDao.getTotalAmountUsed()
-                val totalExpiredLost = couponDao.getTotalExpiredValue()
-                val activeCoupons    = couponDao.getActiveCouponsCount()
-                val usedCoupons      = couponDao.getUsedCouponsCount()
-                val monthlyUsage     = usageLogDao.getMonthlyUsage()
-                val topMerchants     = usageLogDao.getTopMerchants()
+                // ריצה מקבילית — שש שאילתות עצמאיות
+                coroutineScope {
+                    val totalSaved       = async { usageLogDao.getTotalAmountUsed() }
+                    val totalExpiredLost = async { couponDao.getTotalExpiredValue() }
+                    val activeCoupons    = async { couponDao.getActiveCouponsCount() }
+                    val usedCoupons      = async { couponDao.getUsedCouponsCount() }
+                    val monthlyUsage     = async { usageLogDao.getMonthlyUsage() }
+                    val topMerchants     = async { usageLogDao.getTopMerchants() }
 
-                _uiState.update {
-                    it.copy(
-                        isLoading        = false,
-                        totalSaved       = totalSaved,
-                        totalExpiredLost = totalExpiredLost,
-                        activeCoupons    = activeCoupons,
-                        usedCoupons      = usedCoupons,
-                        monthlyUsage     = monthlyUsage,
-                        topMerchants     = topMerchants
+                    // המתנה לכולן (awaitAll מבטיח שכולן הושלמו לפני העדכון)
+                    awaitAll(
+                        totalSaved, totalExpiredLost, activeCoupons,
+                        usedCoupons, monthlyUsage, topMerchants
                     )
+
+                    _uiState.update {
+                        it.copy(
+                            isLoading        = false,
+                            totalSaved       = totalSaved.await(),
+                            totalExpiredLost = totalExpiredLost.await(),
+                            activeCoupons    = activeCoupons.await(),
+                            usedCoupons      = usedCoupons.await(),
+                            monthlyUsage     = monthlyUsage.await(),
+                            topMerchants     = topMerchants.await()
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false) }

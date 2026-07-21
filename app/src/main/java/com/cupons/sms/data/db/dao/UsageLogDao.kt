@@ -25,6 +25,10 @@ interface UsageLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(log: UsageLogEntity): Long
 
+    /** כל רשומות השימוש — לגיבוי מלא (backup v2) */
+    @Query("SELECT * FROM usage_log ORDER BY used_at ASC")
+    suspend fun getAll(): List<UsageLogEntity>
+
     /** סה"כ סכום שנוצל בכל הזמנים */
     @Query("SELECT COALESCE(SUM(amount_used), 0) FROM usage_log")
     suspend fun getTotalAmountUsed(): Double

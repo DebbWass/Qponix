@@ -253,7 +253,7 @@ fun HomeScreen(
                                 strokeWidth = 2.5.dp
                             )
                         } else {
-                            Icon(Icons.Default.Sms, contentDescription = "סרוק SMS",
+                            Icon(Icons.Default.Refresh, contentDescription = "סרוק SMS",
                                 tint = Color.White, modifier = Modifier.size(26.dp))
                         }
                     }

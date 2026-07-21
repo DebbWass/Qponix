@@ -32,6 +32,7 @@ local-secrets.properties
 # ===== Gradle =====
 gradle-wrapper.jar
 .gradle/
+.kotlin/
 **/build/
 !gradle-wrapper.jar
 !**/src/main/**/build/
@@ -69,4 +70,5 @@ node_modules/
 npm-debug.log*
 
 # ===== Claude Code settings (keep settings.json if you want to share) =====
-.claude/settings.local.json
+.claude/
+!.claude/settings.json

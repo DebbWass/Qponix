@@ -31,6 +31,7 @@ data class SettingsUiState(
 
 data class BackupUiState(
     val isBackingUp  : Boolean = false,
+    val isRescanning : Boolean = false,
     val backupMessage: String? = null
 )
 
@@ -91,11 +92,11 @@ class SettingsViewModel @Inject constructor(
     fun backupNow() {
         viewModelScope.launch {
             _backupState.update { it.copy(isBackingUp = true, backupMessage = null) }
-            val file = exportManager.exportToJson()
+            val fileName = exportManager.exportToJson()
             _backupState.update {
                 it.copy(
                     isBackingUp   = false,
-                    backupMessage = if (file != null) "גובה בהצלחה ל: ${file.name}" else "הגיבוי נכשל"
+                    backupMessage = if (fileName != null) "גובה בהצלחה ל: $fileName" else "הגיבוי נכשל"
                 )
             }
         }
@@ -125,7 +126,7 @@ class SettingsViewModel @Inject constructor(
      */
     fun rescanExpiryDates() {
         viewModelScope.launch {
-            _backupState.update { it.copy(isBackingUp = true, backupMessage = null) }
+            _backupState.update { it.copy(isRescanning = true, backupMessage = null) }
             try {
                 val coupons = dao.getCouponsWithNoExpiry()
                 var updated = 0
@@ -139,7 +140,7 @@ class SettingsViewModel @Inject constructor(
                 }
                 _backupState.update {
                     it.copy(
-                        isBackingUp   = false,
+                        isRescanning  = false,
                         backupMessage = if (updated > 0)
                             "עודכנו $updated קופונים עם תאריך תפוגה ✓"
                         else
@@ -148,7 +149,7 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _backupState.update {
-                    it.copy(isBackingUp = false, backupMessage = "שגיאה בסריקה: ${e.message}")
+                    it.copy(isRescanning = false, backupMessage = "שגיאה בסריקה: ${e.message}")
                 }
             }
         }

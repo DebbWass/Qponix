@@ -9,7 +9,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import com.cupons.sms.data.prefs.AppPreferences
 import com.cupons.sms.domain.repository.CouponRepository
 import com.cupons.sms.domain.model.Coupon
 import com.cupons.sms.util.NotificationHelper
@@ -28,12 +30,17 @@ class SmsReceiver : BroadcastReceiver() {
     @Inject lateinit var parser: SmsParser
     @Inject lateinit var repository: CouponRepository
     @Inject lateinit var notificationHelper: NotificationHelper
+    @Inject lateinit var prefs: AppPreferences
 
     // Scope ל-coroutines — SupervisorJob מבטיח שכישלון אחד לא יפיל אחרים
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val TAG = "SmsReceiver"
+
+        // בסיס ל-ID של התראות "קופון חדש" — יציב לפי id הקופון,
+        // ומופרד מטווח ההתראות של ExpiryNotificationWorker
+        private const val NEW_COUPON_NOTIF_BASE = 200_000L
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -50,12 +57,18 @@ class SmsReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "Received SMS from '$sender'")
 
-        // ניסיון פרסור
-        val parsed = parser.parse(body, sender, receivedAt) ?: return
+        // goAsync — משאיר את התהליך חי עד finish(), אחרת המערכת עלולה
+        // להרוג את התהליך לפני שהשמירה ב-DB מסתיימת (אובדן קופונים)
+        val pendingResult = goAsync()
 
-        // שמירה ב-DB ב-coroutine (לא לחסום את ה-main thread)
         scope.launch {
             try {
+                // פרסור עם מילות מפתח/רשימה שחורה מותאמות אישית מה-DataStore
+                val customKeywords  = prefs.customKeywords.first().toList()
+                val customBlacklist = prefs.customBlacklist.first().toList()
+                val parsed = parser.parse(body, sender, receivedAt, customKeywords, customBlacklist)
+                    ?: return@launch
+
                 // בדיקה: האם ה-SMS הזה כבר קיים?
                 // (SMS חדשים אין להם ID קבוע עדיין, נשתמש ב-timestamp+sender)
                 val tempSmsId = "${sender}_${receivedAt}"
@@ -82,11 +95,13 @@ class SmsReceiver : BroadcastReceiver() {
                     notificationHelper.notifyNewCoupon(
                         couponCode   = parsed.couponCode,
                         merchantName = parsed.merchantName,
-                        notifId      = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
+                        notifId      = (NEW_COUPON_NOTIF_BASE + insertedId % 100_000).toInt()
                     )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save coupon from SMS", e)
+            } finally {
+                pendingResult.finish()
             }
         }
     }

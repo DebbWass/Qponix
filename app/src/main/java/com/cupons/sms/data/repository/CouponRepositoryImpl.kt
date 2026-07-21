@@ -1,5 +1,7 @@
 package com.cupons.sms.data.repository
 
+import androidx.room.withTransaction
+import com.cupons.sms.data.db.AppDatabase
 import com.cupons.sms.data.db.dao.CouponDao
 import com.cupons.sms.data.db.dao.UsageLogDao
 import com.cupons.sms.data.db.entity.UsageLogEntity
@@ -20,6 +22,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class CouponRepositoryImpl @Inject constructor(
+    private val db: AppDatabase,
     private val couponDao: CouponDao,
     private val usageLogDao: UsageLogDao
 ) : CouponRepository {
@@ -57,14 +60,26 @@ class CouponRepositoryImpl @Inject constructor(
 
     // ─── Mutations ───
 
-    override suspend fun insertCoupon(coupon: Coupon): Long =
-        couponDao.insert(coupon.toEntity())
+    override suspend fun insertCoupon(coupon: Coupon): Long {
+        // הגנת כפילויות תוכן לקופונים ממקור SMS/WhatsApp (smsId != null):
+        // אותה הודעה יכולה להגיע גם בזמן אמת (sms_id סינתטי) וגם בסריקת Inbox
+        // (sms_id של ה-Provider) — sms_id שונה, אז האינדקס הייחודי לא תופס.
+        // קופונים ידניים (smsId == null) פטורים כדי לא לחסום הזנה חוזרת מכוונת.
+        if (coupon.smsId != null &&
+            couponDao.countByCodeAndSender(coupon.couponCode, coupon.sender) > 0
+        ) {
+            return -1L
+        }
+        return couponDao.insert(coupon.toEntity())
+    }
 
     override suspend fun updateCoupon(coupon: Coupon) =
         couponDao.update(coupon.toEntity())
 
     /**
      * עדכון יתרה — מעדכן את שדה ה-balance ומוסיף רשומה ל-usage_log.
+     * שתי הפעולות בטרנזקציה אחת: או ששתיהן מצליחות או ששתיהן מתבטלות
+     * (מונע חוסר-סנכרון בין היתרה ליומן השימוש בקריסה).
      */
     override suspend fun updateBalance(
         couponId: Long,
@@ -72,19 +87,41 @@ class CouponRepositoryImpl @Inject constructor(
         amountUsed: Double,
         note: String?
     ) {
-        couponDao.updateBalance(couponId, newBalance)
-        usageLogDao.insert(
-            UsageLogEntity(
-                couponId     = couponId,
-                amountUsed   = amountUsed,
-                balanceAfter = newBalance,
-                note         = note
+        db.withTransaction {
+            couponDao.updateBalance(couponId, newBalance)
+            usageLogDao.insert(
+                UsageLogEntity(
+                    couponId     = couponId,
+                    amountUsed   = amountUsed,
+                    balanceAfter = newBalance,
+                    note         = note
+                )
             )
-        )
+        }
     }
 
-    override suspend fun markAsUsed(couponId: Long) =
-        couponDao.markAsUsed(couponId)
+    /**
+     * סימון קופון כממומש — מאפס יתרה ורושם רשומת usage_log על היתרה שנוצלה,
+     * כדי שסטטיסטיקת ה"נחסך" לא תחסיר קופונים שנסגרו כאן.
+     * אידמפוטנטי: קריאה שנייה (יתרה כבר 0) לא תוסיף רשומה נוספת.
+     */
+    override suspend fun markAsUsed(couponId: Long) {
+        db.withTransaction {
+            val coupon = couponDao.getById(couponId)
+            val remaining = coupon?.remainingBalance
+            if (remaining != null && remaining > 0.0) {
+                usageLogDao.insert(
+                    UsageLogEntity(
+                        couponId     = couponId,
+                        amountUsed   = remaining,
+                        balanceAfter = 0.0,
+                        note         = null
+                    )
+                )
+            }
+            couponDao.markAsUsed(couponId)
+        }
+    }
 
     /** מחיקה רכה — הקופון יעבור לטאב "נמחקו" */
     override suspend fun deleteCoupon(couponId: Long) =

@@ -15,11 +15,12 @@ import javax.inject.Inject
 /**
  * HomeViewModel — מנהל את מצב מסך הרשימה הראשית.
  *
- * ארבעה טאבים:
- *  - ACTIVE   → קופונים שבתוקף (לא ממומשים, לא נמחקו, לא פגי תוקף)
- *  - EXPIRED  → קופונים שפג תוקפם
- *  - ARCHIVED → קופונים ממומשים / בארכיון
- *  - DELETED  → קופונים שנמחקו (מחיקה רכה)
+ * חמישה טאבים:
+ *  - ACTIVE         → קופונים שבתוקף (לא ממומשים, לא נמחקו, לא פגי תוקף)
+ *  - EXPIRING_SOON  → קופונים שעומדים לפוג בקרוב
+ *  - EXPIRED        → קופונים שפג תוקפם
+ *  - ARCHIVED       → קופונים ממומשים / בארכיון
+ *  - DELETED        → קופונים שנמחקו (מחיקה רכה)
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -108,7 +109,9 @@ class HomeViewModel @Inject constructor(
     private fun observeDeleted() {
         repository.getDeletedCoupons()
             .onEach { deleted ->
-                _uiState.update { it.copy(deletedCoupons = deleted) }
+                // דדופ עקבי לפי קוד — כמו בשאר הטאבים
+                val deduped = deleted.distinctBy { it.couponCode.uppercase().trim() }
+                _uiState.update { it.copy(deletedCoupons = deduped) }
             }
             .launchIn(viewModelScope)
     }

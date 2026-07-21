@@ -57,7 +57,8 @@ class SmsParser @Inject constructor() {
             // ─ לינקים מיוחדים ─
             "matana4u",
             "buyme", "buyme.co.il", "buy me", "buy-me",
-            "dcgift", "dcgift.co.il"
+            "dcgift", "dcgift.co.il",
+            "gogift", "gogift.co.il"
         )
 
         // ─── 2. Patterns לחילוץ קוד קופון ───
@@ -136,6 +137,14 @@ class SmsParser @Inject constructor() {
                 RegexOption.IGNORE_CASE
             ),
 
+            // Pattern 8d: קוד מתוך URL של gogift — למשל https://giftcard.gogift.co.il/redeem/GIFT7788
+            // ה-lookahead דורש שהמקטע יכיל לפחות ספרה אחת, כדי לא לתפוס מילים בנתיב
+            // כמו "redeem"/"gift" כקוד.
+            Regex(
+                """gogift\.co\.il/(?:[^/\s?#]+/)*(?=[A-Za-z0-9\-]*[0-9])([A-Z0-9][A-Z0-9\-]{3,24})""",
+                RegexOption.IGNORE_CASE
+            ),
+
             // Pattern 9: קוד כפרמטר URL — ?code=ABC123 / &coupon=ABC123
             Regex(
                 """[?&](?:code|coupon|voucher|gift)=([A-Z0-9][A-Z0-9\-]{3,24})""",
@@ -208,17 +217,32 @@ class SmsParser @Inject constructor() {
 
         // סף אורך מינימלי לשם דומיין שייחשב שם עסק
         private const val MIN_DOMAIN_NAME_LENGTH = 4
+
+        // חלון חסד לגלגול שנה בתאריכי DD.MM — יום אחד (מונע גלגול שגוי
+        // כשהתפוגה זהה כמעט לתאריך הקבלה)
+        private const val ROLLOVER_GRACE_MS = 24L * 60 * 60 * 1000
+
+        // דומיינים של ספקי גיפטקארד ודאיים — מקבלים boost ביטחון (auto-import)
+        private val CERTAIN_COUPON_DOMAINS = listOf("matana4u", "gogift.co.il")
     }
 
     // ─── פונקציה ראשית ───
 
-    fun parse(body: String, sender: String, receivedAt: Long, customKeywords: List<String> = emptyList()): ParsedSmsData? {
+    fun parse(
+        body: String,
+        sender: String,
+        receivedAt: Long,
+        customKeywords: List<String> = emptyList(),
+        customBlacklist: List<String> = emptyList()
+    ): ParsedSmsData? {
         Log.d(TAG, "Parsing SMS from='$sender': ${body.take(100)}...")
 
         val bodyLower = body.lowercase()
 
-        // שלב 0: חסימת פרסומות/OTP ברורות
-        if (PROMO_BLACKLIST.any { kw -> bodyLower.contains(kw.lowercase()) }) {
+        // שלב 0: חסימת פרסומות/OTP ברורות (כולל רשימה שחורה מותאמת אישית)
+        val blacklist = if (customBlacklist.isEmpty()) PROMO_BLACKLIST
+                        else PROMO_BLACKLIST + customBlacklist
+        if (blacklist.any { kw -> kw.isNotBlank() && bodyLower.contains(kw.lowercase()) }) {
             Log.d(TAG, "Blacklisted → skip")
             return null
         }
@@ -248,10 +272,15 @@ class SmsParser @Inject constructor() {
         val url          = extractUrl(body).also      {
             if (it != null) {
                 confidence += 0.10f
-                // לינקים של matana4u הם קופונים ודאיים — boost נוסף
-                if (it.contains("matana4u", ignoreCase = true)) confidence += 0.20f
+                // לינקים של ספקי גיפטקארד ידועים הם קופונים ודאיים — boost נוסף
+                if (CERTAIN_COUPON_DOMAINS.any { d -> it.contains(d, ignoreCase = true) }) {
+                    confidence += 0.20f
+                }
             }
         }
+
+        // הצמדה לטווח [0,1] — ה-boost עלול לחרוג מ-1.0
+        confidence = confidence.coerceIn(0f, 1f)
 
         Log.d(TAG, "confidence=$confidence | amount=${amountResult?.amount} | expires=$expiresAt")
 
@@ -320,25 +349,39 @@ class SmsParser @Inject constructor() {
                 .get(java.util.Calendar.YEAR)
             when (parts.size) {
                 2 -> {
-                    // DD.MM — שנה חסרה: נניח שנת קבלת הקופון
+                    // DD.MM — שנה חסרה: נניח שנת קבלת הקופון,
+                    // ואם התאריך יוצא בעבר (קבלה בדצמבר, תפוגה בינואר) → נגלגל לשנה הבאה
                     val day   = parts[0].toInt()
                     val month = parts[1].toInt() - 1
-                    java.util.Calendar.getInstance()
-                        .apply { set(receivedYear, month, day, 23, 59, 59) }
-                        .timeInMillis
+                    if (!isValidDayMonth(day, month)) return null
+                    val cal = buildDate(receivedYear, month, day)
+                    if (cal.timeInMillis < receivedAt - ROLLOVER_GRACE_MS) {
+                        cal.add(java.util.Calendar.YEAR, 1)
+                    }
+                    cal.timeInMillis
                 }
                 3 -> {
                     val day   = parts[0].toInt()
                     val month = parts[1].toInt() - 1
                     val year  = parts[2].toInt().let { y -> if (y < 100) 2000 + y else y }
-                    java.util.Calendar.getInstance()
-                        .apply { set(year, month, day, 23, 59, 59) }
-                        .timeInMillis
+                    if (!isValidDayMonth(day, month)) return null
+                    buildDate(year, month, day).timeInMillis
                 }
                 else -> null
             }
         } catch (e: Exception) { null }
     }
+
+    /** תקינות בסיסית — Calendar לניენטי ומגלגל "32.13" לתאריך שגוי בשקט */
+    private fun isValidDayMonth(day: Int, month: Int): Boolean =
+        day in 1..31 && month in 0..11
+
+    /** בונה תאריך בסוף היום (23:59:59.999) עם אלפיות דטרמיניסטיות */
+    private fun buildDate(year: Int, month: Int, day: Int): java.util.Calendar =
+        java.util.Calendar.getInstance().apply {
+            set(year, month, day, 23, 59, 59)
+            set(java.util.Calendar.MILLISECOND, 999)
+        }
 
     /**
      * שם בית העסק — לפי סדר עדיפויות:

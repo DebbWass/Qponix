@@ -31,6 +31,10 @@ class ExpiryNotificationWorker @AssistedInject constructor(
         private const val TAG          = "ExpiryWorker"
         const val WORK_NAME            = "expiry_notification_work"
 
+        // בסיס ל-ID התראות תפוגה — יציב לפי id הקופון, כדי שהרצה חוזרת
+        // תעדכן את אותה התראה במקום ליצור כפילות; מופרד מטווח "קופון חדש".
+        private const val EXPIRY_NOTIF_BASE = 100_000L
+
         fun buildRequest(): PeriodicWorkRequest =
             PeriodicWorkRequestBuilder<ExpiryNotificationWorker>(1, TimeUnit.DAYS)
                 .build()
@@ -51,14 +55,14 @@ class ExpiryNotificationWorker @AssistedInject constructor(
             val expiring = dao.getCouponsExpiringBefore(now, deadline)
             Log.d(TAG, "Found ${expiring.size} expiring coupons")
 
-            expiring.forEachIndexed { index, coupon ->
+            expiring.forEach { coupon ->
                 val daysLeft = ((coupon.expiresAt!! - now) / TimeUnit.DAYS.toMillis(1)).toInt()
                     .coerceAtLeast(0)
                 notifHelper.notifyExpiringSoon(
                     couponCode   = coupon.couponCode,
                     merchantName = coupon.merchantName,
                     daysLeft     = daysLeft,
-                    notifId      = 1000 + index
+                    notifId      = (EXPIRY_NOTIF_BASE + coupon.id % 100_000).toInt()
                 )
             }
 
