@@ -191,13 +191,13 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(isMultiSelectMode = false, selectedIds = emptySet()) }
     }
 
-    /** מחיקת כל הפריטים הנבחרים (מחיקה רכה) */
+    /** מחיקת כל הפריטים הנבחרים (מחיקה רכה, פעולה אטומית אחת) */
     fun deleteSelected() {
-        val toDelete = _uiState.value.selectedIds.toSet()
+        val toDelete = _uiState.value.selectedIds.toList()
         viewModelScope.launch {
-            toDelete.forEach { id -> repository.deleteCoupon(id) }
+            repository.deleteMultipleCoupons(toDelete)
+            clearSelection()
         }
-        clearSelection()
     }
 
     // ─── Search / Sort Actions ───

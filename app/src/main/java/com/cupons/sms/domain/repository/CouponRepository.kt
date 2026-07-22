@@ -55,6 +55,9 @@ interface CouponRepository {
     /** מחיקה רכה — מסמן is_deleted=1, הקופון יועבר לטאב "נמחקו" */
     suspend fun deleteCoupon(couponId: Long)
 
+    /** מחיקה רכה של רשימת קופונים בפעולה אטומית אחת */
+    suspend fun deleteMultipleCoupons(ids: List<Long>)
+
     /** שחזור קופון שנמחק — מבטל is_deleted */
     suspend fun restoreCoupon(couponId: Long)
 

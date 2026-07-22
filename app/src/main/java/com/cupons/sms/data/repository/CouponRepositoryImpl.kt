@@ -127,6 +127,10 @@ class CouponRepositoryImpl @Inject constructor(
     override suspend fun deleteCoupon(couponId: Long) =
         couponDao.softDelete(couponId)
 
+    /** מחיקה רכה של מספר קופונים בפעולה אטומית אחת */
+    override suspend fun deleteMultipleCoupons(ids: List<Long>) =
+        couponDao.softDeleteMultiple(ids)
+
     /** שחזור קופון שנמחק */
     override suspend fun restoreCoupon(couponId: Long) =
         couponDao.restoreCoupon(couponId)

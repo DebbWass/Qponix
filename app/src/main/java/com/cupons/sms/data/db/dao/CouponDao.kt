@@ -157,6 +157,17 @@ interface CouponDao {
     suspend fun softDelete(couponId: Long, updatedAt: Long = System.currentTimeMillis())
 
     /**
+     * מחיקה רכה של מספר קופונים בפעולה אטומית אחת — לשימוש במחיקה מרובה.
+     */
+    @Query("""
+        UPDATE coupons
+        SET is_deleted = 1,
+            updated_at = :updatedAt
+        WHERE id IN (:ids)
+    """)
+    suspend fun softDeleteMultiple(ids: List<Long>, updatedAt: Long = System.currentTimeMillis())
+
+    /**
      * שחזור קופון שנמחק — מבטל is_deleted.
      */
     @Query("""

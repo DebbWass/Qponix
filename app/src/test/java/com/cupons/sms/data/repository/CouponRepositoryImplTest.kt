@@ -149,6 +149,20 @@ class CouponRepositoryImplTest {
     }
 
     @Test
+    fun `deleteMultipleCoupons soft-deletes all given ids atomically`() = runTest {
+        val id1 = repo.insertCoupon(smsCoupon("M1", "S", "S_10"))
+        val id2 = repo.insertCoupon(smsCoupon("M2", "S", "S_11"))
+        val id3 = repo.insertCoupon(smsCoupon("M3", "S", "S_12"))
+
+        repo.deleteMultipleCoupons(listOf(id1, id2))
+
+        assertEquals(listOf("M3"), repo.getNonArchivedCoupons().first().map { it.couponCode })
+        assertEquals(setOf("M1", "M2"), repo.getDeletedCoupons().first().map { it.couponCode }.toSet())
+        // id3 לא נמחק
+        assertEquals(false, repo.getCouponById(id3)!!.isDeleted)
+    }
+
+    @Test
     fun `getCouponById returns null for missing id`() = runTest {
         assertNull(repo.getCouponById(9999L))
     }
